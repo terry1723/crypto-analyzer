@@ -10,6 +10,12 @@ import requests
 import json
 import os
 
+# 從Streamlit secrets或環境變數讀取API密鑰，如果都不存在則使用預設值
+if 'DEEPSEEK_API_KEY' in st.secrets:
+    DEEPSEEK_API_KEY = st.secrets['DEEPSEEK_API_KEY']
+else:
+    DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "sk-6ae04d6789f94178b4053d2c42650b6c")
+
 # 顯示處理中動畫 - 簡化為靜態提示
 def show_processing_animation():
     st.info("正在進行多模型AI分析...")
@@ -573,9 +579,6 @@ def get_claude_analysis(symbol, timeframe, smc_results, snr_results):
     
     _分析時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}_
     """ 
-
-# 從環境變數讀取API密鑰，如果不存在則使用預設值
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "sk-6ae04d6789f94178b4053d2c42650b6c")
 
 # Streamlit頁面設定
 st.set_page_config(
