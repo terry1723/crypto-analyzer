@@ -1,0 +1,7 @@
+streamlit==1.36.0
+pandas==2.2.0
+numpy==1.26.3
+ccxt==4.1.80
+plotly==5.18.0
+Pillow==10.2.0
+requests==2.31.0 

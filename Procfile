@@ -1,0 +1,1 @@
+web: streamlit run crypto_analyzer_ai.py 

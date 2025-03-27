@@ -1,0 +1,54 @@
+# Python相關
+*.py[cod]
+*$py.class
+__pycache__/
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 環境相關
+.env
+.venv
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Streamlit相關
+.streamlit/secrets.toml
+
+# 系統相關
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 快取
+__pycache__/
+.cache
+.pytest_cache/
+
+# 日誌
+*.log
+
+# 輸出
+*.png
+*.jpg
+*.jpeg
+*.csv
+*.xlsx 

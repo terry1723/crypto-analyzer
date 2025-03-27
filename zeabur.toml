@@ -1,0 +1,9 @@
+[build]
+builder = "python:3.11"
+
+[deploy]
+startCommand = "streamlit run crypto_analyzer_ai.py --server.port $PORT --server.address 0.0.0.0"
+envs = ["DEEPSEEK_API_KEY"]
+
+[http]
+port = 8501 
