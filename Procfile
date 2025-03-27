@@ -1,1 +1,1 @@
-web: streamlit run crypto_analyzer_ai.py 
+web: streamlit run crypto_analyzer_fixed.py 
