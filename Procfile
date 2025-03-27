@@ -1,1 +1,1 @@
-web: streamlit run crypto_analyzer_fixed.py 
+web: streamlit run crypto_analyzer_cursor.py --server.port=$PORT --server.address=0.0.0.0 
