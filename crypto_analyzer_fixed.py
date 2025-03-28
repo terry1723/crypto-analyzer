@@ -9,6 +9,16 @@ import plotly.graph_objects as go
 import requests
 import json
 import os
+from openai import OpenAI
+from dotenv import load_dotenv
+
+# 載入環境變數
+load_dotenv()
+
+# 初始化 OpenAI 客戶端
+client = OpenAI(
+    api_key=os.getenv('OPENAI_API_KEY'),
+)
 
 # 從Streamlit secrets或環境變數讀取API密鑰，如果都不存在則使用預設值
 if 'DEEPSEEK_API_KEY' in st.secrets:
@@ -534,36 +544,103 @@ def get_fallback_deepseek_analysis(symbol, timeframe, smc_results, snr_results):
 
 # 模擬使用GPT-4o-mini進行市場情緒分析
 def get_gpt4o_analysis(symbol, timeframe, smc_results, snr_results):
-    # 準備內容
-    market_state = "超買" if snr_results['overbought'] else "超賣" if snr_results['oversold'] else "中性"
-    
-    # 模擬GPT-4o-mini的回應
-    analysis = f"""
-    ## {symbol} {timeframe} 市場情緒分析
+    try:
+        # 準備分析內容
+        prompt = f"""
+作為一個專業的加密貨幣分析師，請基於以下數據對 {symbol} 進行深入分析：
 
-    基於當前數據，{symbol}市場情緒呈現{"強烈看漲" if smc_results['market_structure'] == 'bullish' and smc_results['trend_strength'] > 0.8 else 
-    "看漲" if smc_results['market_structure'] == 'bullish' else 
-    "強烈看跌" if smc_results['market_structure'] == 'bearish' and smc_results['trend_strength'] < 0.4 else 
-    "看跌" if smc_results['market_structure'] == 'bearish' else "中性"}傾向。
+時間框架: {timeframe}
 
-    RSI指標當前為{snr_results['rsi']:.2f}，處於{market_state}狀態，
-    {"這通常是買入機會的信號" if market_state == "超賣" else 
-    "這可能預示著短期調整的到來" if market_state == "超買" else 
-    "未顯示明確的超買或超賣信號"}。
+SMC分析結果:
+- 當前價格: ${smc_results['price']}
+- 市場結構: {smc_results['market_structure']}
+- 流動性: {smc_results['liquidity']}
+- 支撐位: ${smc_results['support_level']}
+- 阻力位: ${smc_results['resistance_level']}
+- 趨勢強度: {smc_results['trend_strength']}
+- SMC建議: {smc_results['recommendation']}
 
-    目前市場支撐位與阻力位之間的價格區間較為明確，從${snr_results['near_support']:.2f}到${snr_results['near_resistance']:.2f}，
-    {"近期交易者情緒偏向在支撐位附近買入" if smc_results['market_structure'] == 'bullish' else 
-    "近期交易者情緒偏向在阻力位附近賣出" if smc_results['market_structure'] == 'bearish' else 
-    "市場參與者情緒較為謹慎，等待更明確的方向"}。
+SNR分析結果:
+- RSI: {snr_results['rsi']}
+- 超買狀態: {snr_results['overbought']}
+- 超賣狀態: {snr_results['oversold']}
+- 近期支撐: ${snr_results['near_support']}
+- 強力支撐: ${snr_results['strong_support']}
+- 近期阻力: ${snr_results['near_resistance']}
+- 強力阻力: ${snr_results['strong_resistance']}
+- 支撐強度: {snr_results['support_strength']}
+- 阻力強度: {snr_results['resistance_strength']}
+- SNR建議: {snr_results['recommendation']}
 
-    考慮到{"近期加密貨幣市場整體回暖" if smc_results['market_structure'] == 'bullish' else 
-    "近期加密貨幣市場整體承壓" if smc_results['market_structure'] == 'bearish' else 
-    "近期加密貨幣市場波動加劇"}，交易者應{"保持樂觀但謹慎的態度" if smc_results['market_structure'] == 'bullish' else 
-    "保持謹慎的態度" if smc_results['market_structure'] == 'bearish' else 
-    "保持中性的態度"}。
-    """
-    
-    return analysis
+請提供：
+1. 市場狀況綜合分析
+2. 潛在的交易機會
+3. 風險評估
+4. 建議的交易策略
+5. 關鍵價位和止損止盈建議
+
+請用繁體中文回答，並保持專業、簡潔和實用性。
+"""
+
+        # 使用 GPT-4 API
+        response = client.chat.completions.create(
+            model="gpt-4-turbo-preview",
+            messages=[
+                {"role": "system", "content": "你是一個專業的加密貨幣分析師，擅長技術分析和風險管理。"},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=1000
+        )
+        
+        if not response.choices:
+            raise Exception("GPT-4 API 未返回有效回應")
+            
+        return response.choices[0].message.content
+            
+    except Exception as e:
+        st.error(f"GPT-4 API 調用失敗：{str(e)}")
+        st.warning("無法連接到 GPT-4 API，提供本地分析結果")
+        
+        # 提供本地分析結果作為備用選項
+        market_state = "超買" if snr_results['overbought'] else "超賣" if snr_results['oversold'] else "中性"
+        trend_state = "強烈看漲" if smc_results['market_structure'] == 'bullish' and smc_results['trend_strength'] > 0.8 else \
+                     "看漲" if smc_results['market_structure'] == 'bullish' else \
+                     "強烈看跌" if smc_results['market_structure'] == 'bearish' and smc_results['trend_strength'] < 0.4 else \
+                     "看跌" if smc_results['market_structure'] == 'bearish' else "中性"
+        
+        return f"""
+## {symbol} {timeframe} 市場分析（本地備用分析）
+
+### 1. 市場狀況綜合分析
+目前 {symbol} 市場情緒呈現{trend_state}傾向。RSI指標為{snr_results['rsi']:.2f}，處於{market_state}狀態。
+{"這通常是買入機會的信號。" if market_state == "超賣" else 
+"這可能預示著短期調整的到來。" if market_state == "超買" else 
+"未顯示明確的超買或超賣信號。"}
+
+### 2. 潛在交易機會
+目前市場支撐位與阻力位之間的價格區間較為明確：
+- 支撐區間：${snr_results['near_support']:.2f} 到 ${snr_results['strong_support']:.2f}
+- 阻力區間：${snr_results['near_resistance']:.2f} 到 ${snr_results['strong_resistance']:.2f}
+
+### 3. 風險評估
+{"市場處於超買區域，存在回調風險。" if snr_results['overbought'] else 
+"市場處於超賣區域，可能出現反彈。" if snr_results['oversold'] else 
+"市場處於中性區域，風險相對平衡。"}
+
+### 4. 建議交易策略
+{"建議在支撐位附近分批買入，第一目標價位為 $" + str(snr_results['near_resistance']) if smc_results['recommendation'] == 'buy' else 
+"建議在阻力位附近減倉或做空，第一目標價位為 $" + str(snr_results['near_support']) if smc_results['recommendation'] == 'sell' else 
+"建議暫時觀望，等待更明確的市場信號"}
+
+### 5. 關鍵價位和風險控制
+- 關鍵支撐：${smc_results['support_level']:.2f}
+- 關鍵阻力：${smc_results['resistance_level']:.2f}
+- 建議止損：{"支撐位下方 3-5% 處" if smc_results['recommendation'] == 'buy' else 
+"阻力位上方 3-5% 處" if smc_results['recommendation'] == 'sell' else "視具體入場位置而定"}
+
+_注意：由於 GPT-4 API 連接問題，此為本地備用分析結果。_
+"""
 
 # 模擬使用Claude-3.7-Sonnet進行整合分析
 def get_claude_analysis(symbol, timeframe, smc_results, snr_results):
@@ -1358,6 +1435,17 @@ with tab1:
                         # 風險警告
                         st.warning("⚠️ 激進策略風險較高，僅供參考。請謹慎使用並自行承擔風險。")
                 
+                # 在這裡添加 GPT-4 分析結果
+                st.markdown("---")
+                st.markdown("## 🔍 GPT-4 進階市場分析")
+                with st.container():
+                    gpt4_analysis = get_gpt4o_analysis(selected_coin, selected_timeframe, smc_results, snr_results)
+                    st.markdown(f"""
+                    <div style='background-color:#1a1d24; padding:20px; border-radius:10px; border-left:5px solid #00BCD4;'>
+                        {gpt4_analysis}
+                    </div>
+                    """, unsafe_allow_html=True)
+                
         else:
             st.error("無法獲取數據，請檢查網絡連接或選擇其他交易對。")
 
@@ -1384,8 +1472,8 @@ st.sidebar.markdown("""
             <td>技術分析與價格預測 (真實API)</td>
         </tr>
         <tr>
-            <td><span style='color:#00BCD4;'>🔍</span> GPT-4o3-mini:</td>
-            <td>市場情緒分析 (模擬)</td>
+            <td><span style='color:#00BCD4;'>🔍</span> GPT-4:</td>
+            <td>市場情緒分析</td>
         </tr>
         <tr>
             <td><span style='color:#3F51B5;'>🔮</span> Claude 3.7:</td>
@@ -1410,7 +1498,7 @@ with st.sidebar.expander("ℹ️ 關於本工具"):
     <div style='background-color:#1a1d24; padding:15px; border-radius:10px;'>
         <p><b>CryptoAnalyzer</b> 是一個整合了SMC(Smart Money Concept)和SNR(Support & Resistance)分析方法的加密貨幣技術分析工具。</p>
         
-        <p>本版本使用DeepSeek V3的真實API進行技術分析，並模擬GPT-4o3-mini和Claude 3.7分析能力，提供全面的加密貨幣市場洞察。</p>
+        <p>本版本使用DeepSeek V3和GPT-4的真實API進行技術分析，並模擬Claude 3.7分析能力，提供全面的加密貨幣市場洞察。</p>
         
         <p style='margin-bottom:0;'>技術數據通過CCXT庫從Binance獲取，使用專業級加密貨幣技術分析指標。</p>
     </div>

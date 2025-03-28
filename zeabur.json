@@ -1,0 +1,7 @@
+{
+  "buildCommand": "pip install -r requirements.txt",
+  "startCommand": "streamlit run crypto_analyzer_fixed.py",
+  "buildEnvironment": {
+    "PYTHON_VERSION": "3.10"
+  }
+} 
