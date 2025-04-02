@@ -37,20 +37,35 @@ venv.bak/
 .vscode/
 *.swp
 *.swo
+node_modules/
+.npm
+.yarn
+coverage/
+*.coverage
+.nyc_output/
 
 # 快取
 __pycache__/
 .cache
 .pytest_cache/
+.mypy_cache/
 
-# 日誌
+# 日誌和數據文件
 *.log
+*.csv
+*.dat
+*.out
+*.pid
+*.seed
+*.db
+*.sqlite
+*.sqlite3
+*.tar.gz
 
 # 輸出
 *.png
 *.jpg
 *.jpeg
-*.csv
 *.xlsx
 
 # Byte-compiled / optimized / DLL files
@@ -77,12 +92,9 @@ venv/
 ENV/
 
 # OS generated files
-.DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
 ehthumbs.db
 Thumbs.db 
-# Streamlit secrets
-.streamlit/secrets.toml

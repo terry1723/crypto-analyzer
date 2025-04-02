@@ -3,4 +3,12 @@ enableCORS = false
 enableXsrfProtection = false
 
 [browser]
-gatherUsageStats = false 
+gatherUsageStats = false
+
+[runner]
+# 限制 Streamlit 監視的文件類型
+fastReruns = true
+# 僅監視 .py 文件變化
+watchedFileTypes = ["py"]
+# 忽略隱藏文件和目錄
+postScriptGatherStats = false 
