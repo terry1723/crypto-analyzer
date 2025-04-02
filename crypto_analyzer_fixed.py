@@ -16,14 +16,21 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 初始化 OpenAI 客戶端
-api_key = os.getenv('OPENAI_API_KEY')
-# 檢查是否為 Streamlit secrets
-if not api_key and 'OPENAI_API_KEY' in st.secrets:
-    api_key = st.secrets['OPENAI_API_KEY']
-
-client = OpenAI(
-    api_key=api_key
-)
+try:
+    api_key = None
+    if 'OPENAI_API_KEY' in st.secrets:
+        api_key = st.secrets['OPENAI_API_KEY']
+    elif os.getenv('OPENAI_API_KEY'):
+        api_key = os.getenv('OPENAI_API_KEY')
+        
+    if api_key:
+        client = OpenAI(api_key=api_key)
+    else:
+        st.warning("未找到 OpenAI API 密鑰，GPT-4 分析功能將不可用")
+        client = None
+except Exception as e:
+    st.error(f"初始化 OpenAI 客戶端時出錯: {str(e)}")
+    client = None
 
 # 從Streamlit secrets或環境變數讀取DeepSeek API密鑰
 if 'DEEPSEEK_API_KEY' in st.secrets:
@@ -550,6 +557,10 @@ def get_fallback_deepseek_analysis(symbol, timeframe, smc_results, snr_results):
 # 模擬使用GPT-4o-mini進行市場情緒分析
 def get_gpt4o_analysis(symbol, timeframe, smc_results, snr_results):
     try:
+        # 檢查 OpenAI 客戶端是否可用
+        if client is None:
+            raise Exception("OpenAI 客戶端未初始化或初始化失敗")
+        
         # 準備分析內容
         prompt = f"""
 作為一個專業的加密貨幣分析師，請基於以下數據對 {symbol} 進行深入分析：
@@ -604,8 +615,7 @@ SNR分析結果:
         return response.choices[0].message.content
             
     except Exception as e:
-        st.error(f"GPT-4 API 調用失敗：{str(e)}")
-        st.warning("無法連接到 GPT-4 API，提供本地分析結果")
+        st.warning(f"GPT-4 分析無法使用：{str(e)}。提供本地分析結果作為替代。")
         
         # 提供本地分析結果作為備用選項
         market_state = "超買" if snr_results['overbought'] else "超賣" if snr_results['oversold'] else "中性"
