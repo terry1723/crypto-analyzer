@@ -1,13 +1,5 @@
 import streamlit as st
 
-# Streamlit頁面設定 - 必須是第一個 Streamlit 命令
-st.set_page_config(
-    page_title="CryptoAnalyzer - 加密貨幣分析工具",
-    layout="wide",
-    initial_sidebar_state="expanded",
-    page_icon="📊"
-)
-
 import pandas as pd
 import numpy as np
 import ccxt
