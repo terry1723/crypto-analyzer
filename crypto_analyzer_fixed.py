@@ -16,11 +16,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 初始化 OpenAI 客戶端
+api_key = os.getenv('OPENAI_API_KEY')
+# 檢查是否為 Streamlit secrets
+if not api_key and 'OPENAI_API_KEY' in st.secrets:
+    api_key = st.secrets['OPENAI_API_KEY']
+
 client = OpenAI(
-    api_key=os.getenv('OPENAI_API_KEY'),
+    api_key=api_key
 )
 
-# 從Streamlit secrets或環境變數讀取API密鑰，如果都不存在則使用預設值
+# 從Streamlit secrets或環境變數讀取DeepSeek API密鑰
 if 'DEEPSEEK_API_KEY' in st.secrets:
     DEEPSEEK_API_KEY = st.secrets['DEEPSEEK_API_KEY']
 else:
