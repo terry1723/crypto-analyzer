@@ -1,4 +1,13 @@
 import streamlit as st
+
+# Streamlit頁面設定 - 必須是第一個 Streamlit 命令
+st.set_page_config(
+    page_title="CryptoAnalyzer - 加密貨幣分析工具",
+    layout="wide",
+    initial_sidebar_state="expanded",
+    page_icon="📊"
+)
+
 import pandas as pd
 import numpy as np
 import ccxt
@@ -29,7 +38,7 @@ try:
         st.warning("未找到 OpenAI API 密鑰，GPT-4 分析功能將不可用")
         client = None
 except Exception as e:
-    st.error(f"初始化 OpenAI 客戶端時出錯: {str(e)}")
+    st.warning(f"初始化 OpenAI 客戶端時出錯: {str(e)}")
     client = None
 
 # 從Streamlit secrets或環境變數讀取DeepSeek API密鑰
@@ -746,18 +755,6 @@ def get_claude_analysis(symbol, timeframe, smc_results, snr_results):
     
     _分析時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}_
     """ 
-
-# Streamlit頁面設定
-st.set_page_config(
-    page_title="CryptoAnalyzer - 加密貨幣分析工具", 
-    layout="wide",
-    initial_sidebar_state="expanded",
-    menu_items={
-        'Get Help': 'https://github.com/yourusername/crypto-analyzer',
-        'Report a bug': "https://github.com/yourusername/crypto-analyzer/issues",
-        'About': "# CryptoAnalyzer\n加密貨幣專業分析工具，整合SMC和SNR策略"
-    }
-)
 
 # 自定義CSS樣式，美化界面
 st.markdown("""
