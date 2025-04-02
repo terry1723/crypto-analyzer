@@ -32,6 +32,10 @@ try:
     elif os.getenv('OPENAI_API_KEY'):
         api_key = os.getenv('OPENAI_API_KEY')
         
+    # 設置環境變數以使用代理 (這樣可以透過系統代理而不是在客戶端中設置)
+    os.environ['http_proxy'] = os.getenv('HTTP_PROXY', '')
+    os.environ['https_proxy'] = os.getenv('HTTPS_PROXY', '')
+    
     if api_key:
         client = OpenAI(api_key=api_key)
     else:
@@ -624,46 +628,19 @@ SNR分析結果:
         return response.choices[0].message.content
             
     except Exception as e:
-        st.warning(f"GPT-4 分析無法使用：{str(e)}。提供本地分析結果作為替代。")
-        
-        # 提供本地分析結果作為備用選項
-        market_state = "超買" if snr_results['overbought'] else "超賣" if snr_results['oversold'] else "中性"
-        trend_state = "強烈看漲" if smc_results['market_structure'] == 'bullish' and smc_results['trend_strength'] > 0.8 else \
-                     "看漲" if smc_results['market_structure'] == 'bullish' else \
-                     "強烈看跌" if smc_results['market_structure'] == 'bearish' and smc_results['trend_strength'] < 0.4 else \
-                     "看跌" if smc_results['market_structure'] == 'bearish' else "中性"
-        
+        error_message = f"GPT-4 API 調用失敗：{str(e)}"
+        st.error(error_message)
         return f"""
-## {symbol} {timeframe} 市場分析（本地備用分析）
+## GPT-4 分析暫時無法使用
 
-### 1. 市場狀況綜合分析
-目前 {symbol} 市場情緒呈現{trend_state}傾向。RSI指標為{snr_results['rsi']:.2f}，處於{market_state}狀態。
-{"這通常是買入機會的信號。" if market_state == "超賣" else 
-"這可能預示著短期調整的到來。" if market_state == "超買" else 
-"未顯示明確的超買或超賣信號。"}
+**錯誤信息**: {error_message}
 
-### 2. 潛在交易機會
-目前市場支撐位與阻力位之間的價格區間較為明確：
-- 支撐區間：${snr_results['near_support']:.2f} 到 ${snr_results['strong_support']:.2f}
-- 阻力區間：${snr_results['near_resistance']:.2f} 到 ${snr_results['strong_resistance']:.2f}
+請檢查以下可能的問題：
+1. API 密鑰是否正確
+2. 網絡連接是否正常
+3. 是否存在地區限制問題
 
-### 3. 風險評估
-{"市場處於超買區域，存在回調風險。" if snr_results['overbought'] else 
-"市場處於超賣區域，可能出現反彈。" if snr_results['oversold'] else 
-"市場處於中性區域，風險相對平衡。"}
-
-### 4. 建議交易策略
-{"建議在支撐位附近分批買入，第一目標價位為 $" + str(snr_results['near_resistance']) if smc_results['recommendation'] == 'buy' else 
-"建議在阻力位附近減倉或做空，第一目標價位為 $" + str(snr_results['near_support']) if smc_results['recommendation'] == 'sell' else 
-"建議暫時觀望，等待更明確的市場信號"}
-
-### 5. 關鍵價位和風險控制
-- 關鍵支撐：${smc_results['support_level']:.2f}
-- 關鍵阻力：${smc_results['resistance_level']:.2f}
-- 建議止損：{"支撐位下方 3-5% 處" if smc_results['recommendation'] == 'buy' else 
-"阻力位上方 3-5% 處" if smc_results['recommendation'] == 'sell' else "視具體入場位置而定"}
-
-_注意：由於 GPT-4 API 連接問題，此為本地備用分析結果。_
+建議使用代理服務或 VPN 解決地區限制問題，或者部署到雲端平台如 Render、Streamlit Cloud 等。
 """
 
 # 模擬使用Claude-3.7-Sonnet進行整合分析
