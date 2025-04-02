@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 # 載入環境變數
 load_dotenv()
 
-# 初始化 OpenAI 客戶端 - 不使用 proxies 參數
+# 初始化 OpenAI 客戶端 - 確保沒有任何額外參數
 try:
     api_key = None
     if 'OPENAI_API_KEY' in st.secrets:
@@ -27,7 +27,7 @@ try:
         st.sidebar.success("✓ 從環境變數讀取 OPENAI_API_KEY")
     
     if api_key:
-        # 純粹只使用 API 密鑰初始化，不添加任何其他參數
+        # 最簡單的初始化方式，只使用 API 密鑰
         client = OpenAI(api_key=api_key)
         st.sidebar.success("✓ OpenAI 客戶端初始化成功")
     else:
@@ -156,7 +156,7 @@ def dummy_data(symbol, periods=100):
     
     return df
 
-# GPT-4o 分析函數 - 確保不使用 proxies
+# GPT-4o 分析函數
 def get_gpt4o_analysis(symbol, timeframe, smc_results, snr_results):
     try:
         # 檢查 OpenAI 客戶端是否可用
@@ -205,7 +205,7 @@ SNR分析結果:
 
         st.info("正在連接 OpenAI API，這可能需要幾秒鐘...")
         
-        # 使用 GPT-4 API - 確保不使用任何額外參數如 proxies
+        # 最簡單的 API 調用方式
         response = client.chat.completions.create(
             model="gpt-4-turbo-preview",
             messages=[
