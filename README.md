@@ -6,6 +6,8 @@
 
 - SMC（Smart Money Concept）策略分析
 - SNR（Support & Resistance）策略分析
+- 使用真實 GPT-4o3-mini API 進行市場情緒分析
+- DeepSeek V3 全方位技術分析
 - 多模型AI集成分析
 - 即時市場數據分析
 - 詳細的技術指標可視化
@@ -23,6 +25,7 @@
 3. 設置以下環境變數：
    - `DEEPSEEK_API_KEY`：DeepSeek API 密鑰
    - `COINMARKETCAP_API_KEY`：CoinMarketCap API 密鑰
+   - `OPENAI_API_KEY`：OpenAI API 密鑰（用於 GPT-4o3-mini 市場情緒分析）
 4. 部署應用程序
 
 部署配置已在 `zeabur.json` 和 `zeabur.toml` 文件中設置好。
@@ -44,4 +47,12 @@
 4. Coinbase API（第三備份）
 5. 模擬數據（最終備份）
 
-此多層備份策略確保應用程序在任何 API 不可用時都能繼續運行。 
+此多層備份策略確保應用程序在任何 API 不可用時都能繼續運行。
+
+## AI 模型
+
+應用程序使用以下 AI 模型進行分析：
+
+1. DeepSeek V3：進行技術分析
+2. GPT-4o3-mini：進行市場情緒分析
+3. 模擬 Claude 3.7：進行整合分析 

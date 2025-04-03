@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 import requests
 import json
 import os
+from openai import OpenAI
 
 # 處理 orjson 相關問題
 import plotly.io._json
@@ -41,6 +42,17 @@ try:
     COINMARKETCAP_API_KEY = st.secrets['COINMARKETCAP_API_KEY']
 except:
     COINMARKETCAP_API_KEY = os.getenv("COINMARKETCAP_API_KEY", "b54bcf4d-1bca-4e8e-9a24-22ff2c3d462c")
+
+# 設置 OpenAI API 密鑰
+try:
+    OPENAI_API_KEY = st.secrets['OPENAI_API_KEY']
+except:
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+
+# 初始化 OpenAI 客戶端
+client = None
+if OPENAI_API_KEY:
+    client = OpenAI(api_key=OPENAI_API_KEY)
 
 # 設置 Bitget MCP 服務器
 BITGET_MCP_SERVER = "http://localhost:3000"
@@ -1302,8 +1314,69 @@ def get_fallback_deepseek_analysis(symbol, timeframe, smc_results, snr_results):
     _分析時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}_
     """
 
-# 模擬使用GPT-4o-mini進行市場情緒分析
+# 使用 GPT-4o3-mini 模型進行市場情緒分析
 def get_gpt4o_analysis(symbol, timeframe, smc_results, snr_results):
+    # 檢查是否有可用的 OpenAI 客戶端
+    if client is None:
+        st.warning("OpenAI API 密鑰未設置，使用模擬的情緒分析")
+        return get_simulated_gpt4o_analysis(symbol, timeframe, smc_results, snr_results)
+    
+    try:
+        # 準備提示
+        market_state = "超買" if snr_results['overbought'] else "超賣" if snr_results['oversold'] else "中性"
+        prompt = f"""
+        請你作為加密貨幣市場情緒分析師，對 {symbol} 在 {timeframe} 時間框架上進行情緒分析。
+        
+        技術指標數據：
+        - 市場結構: {"上升趨勢" if smc_results['market_structure'] == 'bullish' else "下降趨勢" if smc_results['market_structure'] == 'bearish' else "中性市場"}
+        - 趨勢強度: {smc_results['trend_strength']:.2f}
+        - RSI: {snr_results['rsi']:.2f}（{'超買' if snr_results['overbought'] else '超賣' if snr_results['oversold'] else '中性區域'}）
+        - 支撐位: ${snr_results['near_support']:.2f}（強支撐: ${snr_results['strong_support']:.2f}）
+        - 阻力位: ${snr_results['near_resistance']:.2f}（強阻力: ${snr_results['strong_resistance']:.2f}）
+        - SMC建議: {"買入" if smc_results['recommendation'] == 'buy' else "賣出" if smc_results['recommendation'] == 'sell' else "觀望"}
+        - SNR建議: {"買入" if snr_results['recommendation'] == 'buy' else "賣出" if snr_results['recommendation'] == 'sell' else "觀望"}
+        
+        請提供以下內容：
+        1. 市場情緒的詳細分析（看漲/看跌/中性）
+        2. 基於RSI和支撐/阻力位的短期情緒判斷
+        3. 交易者當前的交易行為傾向
+        4. 考慮當前市場整體環境的交易建議
+        
+        格式要求：
+        - 以 "## {symbol} {timeframe} 市場情緒分析" 為標題
+        - 使用繁體中文
+        - 分析內容簡潔有力，總字數在200字以內
+        """
+        
+        with st.spinner("正在使用 GPT-4o3-mini 進行市場情緒分析..."):
+            # 發送請求到 OpenAI API
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",  # 使用 GPT-4o3-mini 模型
+                messages=[
+                    {"role": "system", "content": "你是一位專業的加密貨幣市場情緒分析師，擅長解讀技術指標並分析市場參與者的情緒狀態。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=800
+            )
+        
+        # 提取回應內容
+        analysis = response.choices[0].message.content
+        
+        # 確保有標題
+        if not analysis.strip().startswith("##"):
+            analysis = f"## {symbol} {timeframe} 市場情緒分析\n\n" + analysis
+        
+        st.success("✅ GPT-4o3-mini 市場情緒分析完成")
+        return analysis
+        
+    except Exception as e:
+        st.error(f"GPT-4o3-mini API 調用失敗: {str(e)}")
+        st.info("使用模擬的市場情緒分析作為備用")
+        return get_simulated_gpt4o_analysis(symbol, timeframe, smc_results, snr_results)
+
+# 模擬使用GPT-4o-mini進行市場情緒分析（作為備用）
+def get_simulated_gpt4o_analysis(symbol, timeframe, smc_results, snr_results):
     # 準備內容
     market_state = "超買" if snr_results['overbought'] else "超賣" if snr_results['oversold'] else "中性"
     
@@ -2157,7 +2230,7 @@ st.sidebar.markdown("""
         </tr>
         <tr>
             <td><span style='color:#00BCD4;'>🔍</span> GPT-4o3-mini:</td>
-            <td>市場情緒分析 (模擬)</td>
+            <td>市場情緒分析 (使用真實API)</td>
         </tr>
         <tr>
             <td><span style='color:#3F51B5;'>🔮</span> Claude 3.7:</td>
@@ -2182,7 +2255,7 @@ with st.sidebar.expander("ℹ️ 關於本工具"):
     <div style='background-color:#1a1d24; padding:15px; border-radius:10px;'>
         <p><b>CryptoAnalyzer</b> 是一個整合了SMC(Smart Money Concept)和SNR(Support & Resistance)分析方法的加密貨幣技術分析工具。</p>
         
-        <p>本版本使用DeepSeek V3的真實API進行技術分析，並模擬GPT-4o3-mini和Claude 3.7分析能力，提供全面的加密貨幣市場洞察。</p>
+        <p>本版本使用DeepSeek V3的真實API進行技術分析，並使用GPT-4o3-mini的真實API進行市場情緒分析，同時模擬Claude 3.7分析能力，提供全面的加密貨幣市場洞察。</p>
         
         <p style='margin-bottom:0;'>技術數據通過CCXT庫從Binance獲取，使用專業級加密貨幣技術分析指標。</p>
     </div>
