@@ -43,11 +43,115 @@ if 'DEEPSEEK_API_KEY' in st.secrets:
 else:
     DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "sk-6ae04d6789f94178b4053d2c42650b6c")
 
+# Coincap API 基本 URL
+COINCAP_API_URL = "http://localhost:3000/api"  # Coincap MCP 默認地址
+
 # 基本函數定義
+@st.cache_data(ttl=300)  # 緩存5分鐘，減少API請求
 def fetch_ohlcv_data(symbol, timeframe, limit=100):
     try:
-        # 將交易對格式從 Binance 轉換為 CoinGecko 格式
+        # 將交易對格式從 Binance 轉換為 Coincap 格式
         # 例如：'BTC/USDT' -> 'bitcoin'
+        coin_mapping = {
+            'BTC/USDT': 'bitcoin',
+            'ETH/USDT': 'ethereum',
+            'SOL/USDT': 'solana',
+            'BNB/USDT': 'binance-coin',
+            'XRP/USDT': 'xrp',
+            'ADA/USDT': 'cardano',
+            'DOGE/USDT': 'dogecoin',
+            'SHIB/USDT': 'shiba-inu'
+        }
+        
+        # 將時間框架轉換為天數
+        days_mapping = {
+            '15m': 1,  # 1天內的數據
+            '1h': 7,   # 7天內的數據
+            '4h': 30,  # 30天內的數據
+            '1d': 90,  # 90天內的數據
+            '1w': 365  # 365天內的數據
+        }
+        
+        if symbol not in coin_mapping:
+            return dummy_data(symbol)  # 如果不支持的幣種，返回模擬數據
+            
+        coin_id = coin_mapping[symbol]
+        
+        # 嘗試使用 Coincap MCP 獲取加密貨幣價格數據
+        try:
+            # 首先獲取資產ID
+            asset_response = requests.get(f"{COINCAP_API_URL}/assets/{coin_id}")
+            if asset_response.status_code != 200:
+                st.warning(f"無法從 Coincap 獲取 {coin_id} 資產信息，嘗試使用備用方式")
+                return fallback_fetch_data(symbol, timeframe, limit)
+                
+            asset_data = asset_response.json()
+            
+            # 獲取歷史價格數據
+            days = days_mapping.get(timeframe, 30)
+            history_response = requests.get(
+                f"{COINCAP_API_URL}/assets/{coin_id}/history", 
+                params={"interval": "d1", "limit": limit}
+            )
+            
+            if history_response.status_code != 200:
+                st.warning(f"無法從 Coincap 獲取 {coin_id} 歷史數據，嘗試使用備用方式")
+                return fallback_fetch_data(symbol, timeframe, limit)
+                
+            history_data = history_response.json()
+            
+            # 處理數據格式
+            df_data = []
+            for point in history_data.get("data", []):
+                timestamp = int(point.get("time", 0))
+                price = float(point.get("priceUsd", 0))
+                volume = float(point.get("volumeUsd", 0))
+                
+                # 估算其他價格（因為 Coincap 只提供收盤價）
+                open_price = price * 0.99
+                high_price = price * 1.02
+                low_price = price * 0.98
+                
+                df_data.append([
+                    timestamp,
+                    open_price,
+                    high_price,
+                    low_price,
+                    price,
+                    volume
+                ])
+            
+            # 如果沒有數據，使用備用方法
+            if not df_data:
+                st.warning(f"Coincap 返回的 {coin_id} 數據為空，嘗試使用備用方式")
+                return fallback_fetch_data(symbol, timeframe, limit)
+                
+            # 創建 DataFrame
+            df = pd.DataFrame(df_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            
+            # 排序並限制數據數量
+            df = df.sort_values('timestamp')
+            if len(df) > limit:
+                df = df.tail(limit)
+                
+            st.success(f"成功從 Coincap 獲取 {symbol} 的數據")
+            return df
+            
+        except Exception as e:
+            st.warning(f"使用 Coincap 獲取數據時出錯: {e}，嘗試使用備用方式")
+            return fallback_fetch_data(symbol, timeframe, limit)
+            
+    except Exception as e:
+        st.error(f"獲取數據時出錯: {e}")
+        return dummy_data(symbol)  # 發生任何錯誤時返回模擬數據
+
+# 備用數據獲取方法（使用 CoinGecko）
+def fallback_fetch_data(symbol, timeframe, limit=100):
+    try:
+        st.info("使用 CoinGecko API 作為備用數據源...")
+        
+        # 將交易對格式從 Binance 轉換為 CoinGecko 格式
         coin_mapping = {
             'BTC/USDT': 'bitcoin',
             'ETH/USDT': 'ethereum',
@@ -69,10 +173,10 @@ def fetch_ohlcv_data(symbol, timeframe, limit=100):
         }
         
         if symbol not in coin_mapping:
-            return dummy_data(symbol)  # 如果不支持的幣種，返回模擬數據
+            return dummy_data(symbol)
             
         coin_id = coin_mapping[symbol]
-        days = days_mapping.get(timeframe, 30)  # 默認30天
+        days = days_mapping.get(timeframe, 30)
         
         # 使用CoinGecko API獲取市場數據
         url = f'https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart'
@@ -82,12 +186,41 @@ def fetch_ohlcv_data(symbol, timeframe, limit=100):
             'interval': 'daily' if timeframe in ['1d', '1w'] else None
         }
         
-        response = requests.get(url, params=params)
-        if response.status_code != 200:
-            return dummy_data(symbol)  # 如果API失敗，返回模擬數據
-            
-        data = response.json()
+        # 添加重試機制，最多嘗試3次
+        max_retries = 3
+        retry_delay = 2  # 初始延遲2秒
         
+        for retry in range(max_retries):
+            # 添加隨機延遲，緩解API請求頻率
+            if retry > 0:
+                # 使用指數退避策略增加延遲
+                delay = retry_delay * (2 ** retry) + random.uniform(0, 1)
+                st.info(f"API請求失敗，{delay:.1f}秒後重試 ({retry+1}/{max_retries})...")
+                time.sleep(delay)
+            
+            response = requests.get(url, params=params, 
+                                   headers={'User-Agent': 'CryptoAnalyzer/1.0'})
+            
+            # 檢查是否成功
+            if response.status_code == 200:
+                data = response.json()
+                break
+            # 如果是速率限制錯誤(429)，進行重試
+            elif response.status_code == 429:
+                if retry == max_retries - 1:  # 最後一次嘗試
+                    st.warning(f"獲取CoinGecko數據時出錯: 429（請求過多）- 已達到API限制")
+                    return dummy_data(symbol)
+                continue
+            # 其他錯誤直接返回模擬數據
+            else:
+                st.error(f"獲取數據失敗: {response.status_code}")
+                return dummy_data(symbol)
+        
+        # 如果所有重試都失敗，返回模擬數據
+        if 'data' not in locals():
+            st.warning("所有API請求嘗試均失敗，使用模擬數據")
+            return dummy_data(symbol)
+            
         # 轉換數據格式
         prices = data['prices']  # [timestamp, price]
         volumes = data.get('total_volumes', [])  # [timestamp, volume]
@@ -122,8 +255,8 @@ def fetch_ohlcv_data(symbol, timeframe, limit=100):
             
         return df
     except Exception as e:
-        st.error(f"獲取數據時出錯: {e}")
-        return dummy_data(symbol)  # 發生任何錯誤時返回模擬數據
+        st.error(f"備用數據獲取出錯: {e}")
+        return dummy_data(symbol)
 
 # 在無法獲取真實數據時生成模擬數據
 def dummy_data(symbol, periods=100):
@@ -271,11 +404,29 @@ def main():
     selected_timeframe = st.sidebar.selectbox("選擇時間範圍", list(TIMEFRAMES.keys()))
     timeframe = TIMEFRAMES[selected_timeframe]
     
+    # 高級設置區
+    with st.sidebar.expander("高級設置", expanded=False):
+        use_dummy_data = st.checkbox("使用模擬數據", value=False, 
+                                    help="選中此項將始終使用模擬數據，避免API限制問題")
+        show_warnings = st.checkbox("顯示警告信息", value=True,
+                                   help="顯示API請求相關的警告信息")
+    
     # 分析按鈕
     if st.sidebar.button("開始分析", use_container_width=True):
         # 獲取數據
         with st.spinner(f"獲取 {selected_coin} 數據..."):
-            df = fetch_ohlcv_data(selected_coin, timeframe)
+            if use_dummy_data:
+                st.info("使用模擬數據進行分析")
+                df = dummy_data(selected_coin)
+            else:
+                df = fetch_ohlcv_data(selected_coin, timeframe)
+                
+                # 如果不顯示警告，清除之前的警告信息
+                if not show_warnings:
+                    # 清除警告信息（這個方法在某些Streamlit版本可能不完全有效）
+                    for element in st.empty():
+                        if isinstance(element, st._DeltaGenerator) and hasattr(element, '_is_warning'):
+                            element.empty()
             
         if df is not None:
             # 顯示簡單的圖表
@@ -287,20 +438,33 @@ def main():
                 low=df['low'],
                 close=df['close']
             )])
+            
+            # 改進圖表顯示
+            fig.update_layout(
+                xaxis_rangeslider_visible=False,
+                height=500,
+                margin=dict(l=50, r=50, t=30, b=50),
+                yaxis_title="價格 (USD)",
+            )
+            
             st.plotly_chart(fig, use_container_width=True)
             
             # 顯示模擬分析結果
             st.subheader("分析結果")
             
+            # 準備分析結果
+            last_price = df['close'].iloc[-1]
+            trend_days = min(5, len(df)-1)  # 確保不會超出數據範圍
+            
             # 模擬結果
             smc_results = {
-                'price': df['close'].iloc[-1],
-                'market_structure': 'bullish' if df['close'].iloc[-1] > df['close'].iloc[-5] else 'bearish',
+                'price': last_price,
+                'market_structure': 'bullish' if df['close'].iloc[-1] > df['close'].iloc[-trend_days] else 'bearish',
                 'liquidity': 'normal',
                 'support_level': df['low'].min() * 0.99,
                 'resistance_level': df['high'].max() * 1.01,
                 'trend_strength': 0.7,
-                'recommendation': 'buy' if df['close'].iloc[-1] > df['close'].iloc[-5] else 'sell'
+                'recommendation': 'buy' if df['close'].iloc[-1] > df['close'].iloc[-trend_days] else 'sell'
             }
             
             snr_results = {
@@ -316,12 +480,58 @@ def main():
                 'recommendation': 'neutral'
             }
             
+            # 顯示簡單分析結果
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown(f"""
+                #### SMC分析
+                - **當前價格**: ${smc_results['price']:.2f}
+                - **市場結構**: {smc_results['market_structure']}
+                - **支撐位**: ${smc_results['support_level']:.2f}
+                - **阻力位**: ${smc_results['resistance_level']:.2f}
+                - **建議**: {smc_results['recommendation']}
+                """)
+            
+            with col2:
+                st.markdown(f"""
+                #### SNR分析
+                - **RSI**: {snr_results['rsi']}
+                - **近期支撐**: ${snr_results['near_support']:.2f}
+                - **近期阻力**: ${snr_results['near_resistance']:.2f}
+                - **建議**: {snr_results['recommendation']}
+                """)
+            
             # 顯示 GPT-4 分析結果
-            st.subheader("GPT-4 進階市場分析")
-            gpt4_analysis = get_gpt4o_analysis(selected_coin, timeframe, smc_results, snr_results)
-            st.markdown(gpt4_analysis)
+            with st.expander("GPT-4 進階市場分析", expanded=True):
+                gpt4_analysis = get_gpt4o_analysis(selected_coin, timeframe, smc_results, snr_results)
+                st.markdown(gpt4_analysis)
         else:
-            st.error("無法獲取數據，請稍後再試")
+            st.error("無法獲取數據，請檢查網絡連接或選擇其他交易對。")
+            st.info("您可以在「高級設置」中選擇「使用模擬數據」選項來繞過API限制。")
+    else:
+        # 顯示應用程式說明
+        st.markdown("""
+        ## 歡迎使用加密貨幣分析工具
+        
+        請從側邊欄選擇幣種和時間範圍，然後點擊「開始分析」按鈕獲取分析結果。
+        
+        ### 使用說明
+        
+        1. **選擇幣種**：從側邊欄選擇要分析的加密貨幣
+        2. **選擇時間範圍**：選擇分析的時間框架
+        3. **高級設置**：調整應用程式行為，包括使用模擬數據選項
+        4. **點擊「開始分析」**：獲取市場分析結果
+        
+        ### 關於API限制
+        
+        本應用使用 CoinGecko 免費 API 獲取市場數據，該 API 有請求頻率限制：
+        
+        - 如果遇到 429 錯誤(請求過多)，應用將自動重試
+        - 如果仍無法獲取數據，將使用模擬數據進行演示
+        - 您可以在「高級設置」中選擇始終使用模擬數據，避免API限制問題
+        
+        了解更多關於 [CoinGecko API 限制](https://www.coingecko.com/en/api/documentation)
+        """)
 
 if __name__ == "__main__":
     main()
