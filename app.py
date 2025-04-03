@@ -31,15 +31,15 @@ except AttributeError:
     plotly.io._json.to_json_plotly = patched_to_json_plotly
 
 # 從Streamlit secrets或環境變數讀取API密鑰，如果都不存在則使用預設值
-if 'DEEPSEEK_API_KEY' in st.secrets:
+try:
     DEEPSEEK_API_KEY = st.secrets['DEEPSEEK_API_KEY']
-else:
+except:
     DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "sk-6ae04d6789f94178b4053d2c42650b6c")
 
 # 設置 CoinMarketCap API 密鑰
-if 'COINMARKETCAP_API_KEY' in st.secrets:
+try:
     COINMARKETCAP_API_KEY = st.secrets['COINMARKETCAP_API_KEY']
-else:
+except:
     COINMARKETCAP_API_KEY = os.getenv("COINMARKETCAP_API_KEY", "b54bcf4d-1bca-4e8e-9a24-22ff2c3d462c")
 
 # 設置 Bitget MCP 服務器
