@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-加密貨幣分析工具 v3.2.1
-更新內容: 添加Crypto APIs作為第二數據源，整合五大API數據來源系統
+加密貨幣分析工具 v3.3.0
+更新內容: 將Crypto APIs提升為主要數據源，優化數據獲取順序
 數據獲取優先順序:
-1. Smithery MCP API 
-2. Crypto APIs (新增)
-3. CoinCap API
-4. CoinGecko API 
-5. CCXT Binance
+1. Crypto APIs (主要數據源)
+2. Smithery MCP API
+3. CoinCap API 
+4. CoinGecko API
 """
 
 import streamlit as st
@@ -811,10 +810,10 @@ def get_cryptoapis_price(symbol, timeframe, limit=100):
     
     return None
 
-# 修改get_crypto_data函數，添加Crypto APIs作為數據源
+# 修改get_crypto_data函數，使Crypto APIs成為主要數據源
 def get_crypto_data(symbol, timeframe, limit=100):
     """
-    獲取加密貨幣歷史數據，優先使用Smithery MCP API
+    獲取加密貨幣歷史數據，優先使用Crypto APIs
     
     參數:
     - symbol: 交易對符號，例如 'BTC/USDT'
@@ -833,24 +832,7 @@ def get_crypto_data(symbol, timeframe, limit=100):
     st.info(f"正在獲取 {symbol} ({timeframe}) 的市場數據...")
     print(f"調用get_crypto_data: {symbol}, {timeframe}, {limit}")
     
-    # 1. 首先嘗試使用Smithery MCP API
-    df = get_smithery_mcp_crypto_price(symbol, timeframe, limit)
-    if df is not None and len(df) > 0:
-        # 驗證價格合理性
-        base_coin = symbol.split('/')[0].upper()
-        if verify_price_reasonability(df, base_coin):
-            # 存入session_state
-            if 'price_data' not in st.session_state:
-                st.session_state.price_data = {}
-            
-            st.session_state.price_data[cache_key] = df.copy()
-            
-            st.success(f"成功獲取 {symbol} 數據，最新價格: ${df['close'].iloc[-1]:.2f}")
-            return df
-        else:
-            print(f"Smithery MCP數據價格驗證失敗")
-    
-    # 1.5 嘗試使用Crypto APIs
+    # 1. 首先嘗試使用Crypto APIs
     df = get_cryptoapis_price(symbol, timeframe, limit)
     if df is not None and len(df) > 0:
         # 驗證價格合理性
@@ -867,7 +849,24 @@ def get_crypto_data(symbol, timeframe, limit=100):
         else:
             print(f"Crypto APIs數據價格驗證失敗")
     
-    # 2. 如果Smithery MCP失敗，嘗試使用CoinCap API
+    # 2. 如果Crypto APIs失敗，嘗試使用Smithery MCP API
+    df = get_smithery_mcp_crypto_price(symbol, timeframe, limit)
+    if df is not None and len(df) > 0:
+        # 驗證價格合理性
+        base_coin = symbol.split('/')[0].upper()
+        if verify_price_reasonability(df, base_coin):
+            # 存入session_state
+            if 'price_data' not in st.session_state:
+                st.session_state.price_data = {}
+            
+            st.session_state.price_data[cache_key] = df.copy()
+            
+            st.success(f"成功獲取 {symbol} 數據，最新價格: ${df['close'].iloc[-1]:.2f}")
+            return df
+        else:
+            print(f"Smithery MCP數據價格驗證失敗")
+    
+    # 3. 如果Smithery MCP失敗，嘗試使用CoinCap API
     try:
         print(f"嘗試使用CoinCap API獲取{symbol}數據")
         
@@ -977,8 +976,8 @@ def get_crypto_data(symbol, timeframe, limit=100):
                     return df
     except Exception as e:
         print(f"CoinCap API請求失敗: {str(e)}")
-    
-    # 3. 嘗試使用CoinGecko API
+
+    # 4. 嘗試使用CoinGecko API
     try:
         print(f"嘗試使用CoinGecko API獲取{symbol}數據")
         
@@ -1097,33 +1096,6 @@ def get_crypto_data(symbol, timeframe, limit=100):
                     return df
     except Exception as e:
         print(f"CoinGecko API請求失敗: {str(e)}")
-    
-    # 4. 嘗試使用CCXT Binance
-    try:
-        print(f"嘗試使用CCXT Binance獲取{symbol}數據")
-        exchange = ccxt.binance()
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-        
-        if ohlcv and len(ohlcv) > 0:
-            # 創建DataFrame
-            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            
-            print(f"成功從CCXT Binance獲取{symbol}的{len(df)}個數據點")
-            
-            # 驗證價格合理性
-            base_coin = symbol.split('/')[0].upper()
-            if verify_price_reasonability(df, base_coin):
-                # 存入session_state
-                if 'price_data' not in st.session_state:
-                    st.session_state.price_data = {}
-                
-                st.session_state.price_data[cache_key] = df.copy()
-                
-                st.success(f"成功獲取 {symbol} 數據，最新價格: ${df['close'].iloc[-1]:.2f}")
-                return df
-    except Exception as e:
-        print(f"CCXT請求失敗: {str(e)}")
     
     # 5. 如果所有API都失敗，顯示錯誤
     st.error(f"無法從任何API獲取{symbol}的真實數據。請檢查網絡連接或嘗試其他交易對。")

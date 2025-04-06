@@ -13,11 +13,10 @@
 ## 數據獲取系統
 
 多API數據獲取系統，按優先順序使用:
-1. Smithery MCP API - 主要數據源
-2. Crypto APIs - 第二數據源 (新增)
+1. Crypto APIs - 主要數據源
+2. Smithery MCP API - 備用數據源
 3. CoinCap API - 備用數據源
 4. CoinGecko API - 備用數據源
-5. CCXT Binance - 最後備用
 
 所有數據均為真實市場數據，不再使用模擬數據。
 
