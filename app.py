@@ -1,3 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+加密貨幣分析工具 v3.2.1
+更新內容: 添加Crypto APIs作為第二數據源，整合五大API數據來源系統
+數據獲取優先順序:
+1. Smithery MCP API 
+2. Crypto APIs (新增)
+3. CoinCap API
+4. CoinGecko API 
+5. CCXT Binance
+"""
+
 import streamlit as st
 import pandas as pd
 import numpy as np
