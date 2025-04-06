@@ -21,6 +21,13 @@ import plotly.graph_objects as go
 import requests
 import json
 import os
+from dotenv import load_dotenv
+
+# 加載環境變數
+load_dotenv()
+
+# 從環境變數獲取API密鑰
+CRYPTOAPIS_KEY = os.getenv('CRYPTOAPIS_KEY', '56af1c06ebd5a7602a660516e0d044489c307860')
 
 # 設置頁面配置
 st.set_page_config(
@@ -721,8 +728,9 @@ def get_cryptoapis_price(symbol, timeframe, limit=100):
         base = base.upper()
         quote = quote.upper()
         
-        # API密鑰
-        api_key = "56af1c06ebd5a7602a660516e0d044489c307860"
+        # 從環境變數獲取API密鑰
+        api_key = CRYPTOAPIS_KEY
+        print(f"使用 Crypto APIs 密鑰: {api_key[:5]}...{api_key[-5:]}")
         
         # 方法1: 使用Exchange Rate By Asset Symbols端點
         rate = None
